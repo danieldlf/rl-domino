@@ -3,5 +3,5 @@ from typing import List
 
 from .stone import Stone
 
-class Hand(BaseModel):
-    stones: List[Stone]
+class Dorme(BaseModel):
+    sleeping_stones: List[Stone]
