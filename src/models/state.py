@@ -4,7 +4,6 @@ from typing import List, Optional
 from .player import Player
 from .table import Table
 from .pair import Pair
-from .stone import Stone
 
 class DominoState(BaseModel):
     players: List[Player]

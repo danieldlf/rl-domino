@@ -38,14 +38,21 @@ class GameController:
         pairs = self._define_pairs(players)
 
         starting_player_index = self._define_starting_player(players)
-        print(starting_player_index)
 
-        return DominoState(
+        state = DominoState(
             players=players,
             table=table,
             pairs=pairs,
             current_player_index=starting_player_index
         )
+
+        starter = players[starting_player_index]
+        highest_double = max([s for s in starter.hand.stones if s.is_carroca()],
+                            key=lambda s: s.value1)
+        table.add_stone(highest_double, "left")
+        starter.remove_stone_from_hand(highest_double)
+
+        return state
 
     @staticmethod
     def _create_stone_set() -> List[Stone]:
@@ -99,8 +106,12 @@ class GameController:
         if not ends:  # primeira jogada
             return True
         return stone.value1 in ends or stone.value2 in ends
+    
+    def play_turn(self, player: Player, stone, side: str):
+        if stone == "pass":
+            self.advance_to_next_player()
+            return True
 
-    def play_turn(self, player: Player, stone: Stone, side: str):
         try:
             self.game_state.table.add_stone(stone, side)
             player.remove_stone_from_hand(stone)
@@ -119,12 +130,62 @@ class GameController:
         return True
 
     def check_for_winner(self) -> Optional[Player]:
+        # Caso 1: alguém zerou
         for player in self.game_state.players:
-            if not player.hand.stones:  # Se não tem pedras na mão
+            if not player.hand.stones:
                 return player
+
+        # Caso 2: ninguém pode jogar → vence quem tem menos pontos
+        if all(self.get_valid_actions(p) == [("pass", None)] for p in self.game_state.players):
+            return min(
+                self.game_state.players,
+                key=lambda p: sum(stone.value1 + stone.value2 for stone in p.hand.stones)
+            )
+
         return None
+    
+    def is_game_over(self):
+        if self.check_for_winner():
+            return True
+
+        for player in self.game_state.players:
+            if self.get_valid_actions(player) != [("pass", None)]:
+                return False 
+
+        return True
 
     def advance_to_next_player(self):
         """Passa o turno para o próximo jogador."""
         current_index = self.game_state.current_player_index
         self.game_state.current_player_index = (current_index + 1) % self.num_players
+
+    def get_valid_actions(self, player: Player):
+        """Retorna todas as jogadas possíveis para o jogador."""
+        actions = []
+        ends = self.get_playable_ends()
+
+        # Se não há pedras na mesa, qualquer pedra pode ser jogada (primeira jogada)
+        if not ends:
+            for stone in player.hand.stones:
+                actions.append((stone, "left"))  # tanto faz o lado na primeira jogada
+            return actions
+
+        # Caso já exista pedra na mesa, só pode jogar se encaixar nas pontas
+        for stone in player.hand.stones:
+            if stone.value1 in ends or stone.value2 in ends:
+                # Se couber à esquerda
+                if stone.value1 == ends[0] or stone.value2 == ends[0]:
+                    actions.append((stone, "left"))
+                # Se couber à direita
+                if stone.value1 == ends[1] or stone.value2 == ends[1]:
+                    actions.append((stone, "right"))
+
+        # Se não tem nenhuma jogada possível, adicionar "passar"
+        if not actions:
+            actions.append(("pass", None))
+
+        return actions
+
+    def get_winner(self) -> Optional[Player]:
+        """Retorna o jogador vencedor, se houver."""
+        return self.check_for_winner()
